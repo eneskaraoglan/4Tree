@@ -13,5 +13,22 @@ export function createMockActivityService(activities: Activity[]): ActivityServi
       const found = store.find((a) => a.id === id);
       return found ? copy(found) : null;
     },
+    saveActivity: async (newAct) => {
+      const dist = newAct.distanceKm || 5.0;
+      const pace = newAct.durationSec > 0 ? Math.round(newAct.durationSec / dist) : 330;
+      const act: Activity = {
+        id: `act-${Date.now()}`,
+        type: newAct.type,
+        distanceKm: dist,
+        durationSec: newAct.durationSec,
+        paceSecPerKm: pace,
+        startedAt: newAct.startedAt || new Date().toISOString(),
+        place: newAct.place || 'İstanbul',
+        route: newAct.route,
+        treesEarned: Math.floor(dist / 20),
+      };
+      store.unshift(act);
+      return copy(act);
+    },
   };
 }
