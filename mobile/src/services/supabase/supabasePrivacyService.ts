@@ -20,7 +20,7 @@ export function createSupabasePrivacyService(): PrivacyService {
 
         const { data: zonesData } = await supabase
           .from('privacy_zones')
-          .select('*')
+          .select('id, label, radius_m, center_lat, center_lng')
           .eq('user_id', user.id);
 
         const visibility: Visibility = profile?.visibility || 'friends';
@@ -52,8 +52,7 @@ export function createSupabasePrivacyService(): PrivacyService {
         await supabase.from('privacy_zones').insert({
           user_id: user.id,
           label: zone.label,
-          center_lat: zone.lat,
-          center_lng: zone.lng,
+          center: `POINT(${zone.lng} ${zone.lat})`,
           radius_m: zone.radiusM,
         });
       }

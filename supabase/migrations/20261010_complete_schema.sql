@@ -1,4 +1,4 @@
-﻿-- =============================================================================
+-- =============================================================================
 -- 4Tree – Tam Şema (Frontend Servis Arayüzleriyle Uyumlu)
 -- Tarih: 2026-10-10
 -- Kapsam:
@@ -412,6 +412,16 @@ CREATE POLICY "privacy_zones: bölge ekle"
 CREATE POLICY "privacy_zones: bölge sil"
   ON public.privacy_zones FOR DELETE
   USING (auth.uid() = user_id);
+
+-- Computed columns (Sanal Sütunlar) for Supabase JS
+-- PostgREST bunları otomatik olarak center_lat ve center_lng olarak döner.
+CREATE OR REPLACE FUNCTION center_lat(pz public.privacy_zones) RETURNS float AS $$
+  SELECT ST_Y(pz.center::geometry);
+$$ LANGUAGE sql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION center_lng(pz public.privacy_zones) RETURNS float AS $$
+  SELECT ST_X(pz.center::geometry);
+$$ LANGUAGE sql IMMUTABLE;
 
 -- =============================================================================
 -- 9. YARDIMCI VIEW: feed_posts_view
