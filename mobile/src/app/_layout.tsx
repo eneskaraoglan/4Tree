@@ -23,6 +23,8 @@ const navigationTheme = {
   },
 };
 
+import { AuthProvider } from '@/context/AuthContext';
+
 export default function RootLayout() {
   // Fontlar gelene (ya da hata/zaman aşımına) dek splash açık kalır; sonra sistem fontuyla da devam edilir.
   const ready = useAppFonts();
@@ -30,9 +32,11 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <ThemeProvider value={navigationTheme}>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }} />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider value={navigationTheme}>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }} />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
