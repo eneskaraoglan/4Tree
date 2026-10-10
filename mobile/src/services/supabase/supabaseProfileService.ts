@@ -25,12 +25,12 @@ export function createSupabaseProfileService(): ProfileService {
 
         return {
           id: data.id,
-          name: data.full_name || 'Kullanıcı',
-          avatarInitial: (data.full_name || 'K')[0].toUpperCase(),
+          name: data.display_name || 'Kullanıcı',
+          avatarInitial: data.avatar_initial || (data.display_name || 'K')[0].toUpperCase(),
           level: data.level || 'seed',
-          totalKm: Number(data.total_km || 0),
+          totalKm: Number(data.total_distance_m ? data.total_distance_m / 1000 : 0),
           totalTrees: Number(data.total_trees || 0),
-          activeDays: Number(data.active_days || 1),
+          activeDays: Number(data.active_days || 0),
         };
       } catch (e) {
         return buildMockProfile([]);
