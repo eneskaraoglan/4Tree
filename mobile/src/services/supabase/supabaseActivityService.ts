@@ -66,5 +66,41 @@ export function createSupabaseActivityService(): ActivityService {
         return null;
       }
     },
+
+    saveActivity: async (newAct) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { data, error } = await supabase
+        .from('runs')
+        .insert({
+          user_id: user.id,
+          type: newAct.type || 'run',
+          duration_sec: newAct.durationSec,
+          started_at: newAct.startedAt || new Date().toISOString(),
+          place: newAct.place || 'İstanbul',
+          route: newAct.route || [],
+        })
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw new Error(error?.message || 'Aktivite kaydedilemedi');
+      }
+
+      return {
+        id: data.id,
+        type: data.type || 'run',
+        distanceKm: Number(data.distance_km || 0),
+        durationSec: Number(data.duration_sec || 0),
+        paceSecPerKm: Number(data.pace_sec_per_km || 0),
+        startedAt: data.started_at,
+        place: data.place || 'İstanbul',
+        route: Array.isArray(data.route) ? data.route : [],
+        treesEarned: Number(data.trees_earned || 0),
+      };
+    },
   };
 }
