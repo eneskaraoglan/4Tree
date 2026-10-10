@@ -2,6 +2,7 @@ export { services } from './defaultServices';
 export { ServicesProvider, useServices } from './ServicesProvider';
 export { createMockServices } from './mock';
 export type { MockScenario, MockServicesOptions } from './mock';
+export { createSupabaseServices } from './supabase';
 export { ServiceError } from './errors';
 export type { ServiceErrorCode } from './errors';
 export type { Services } from './types';

@@ -1,4 +1,12 @@
 import { createMockServices } from './mock';
+import { createSupabaseServices } from './supabase';
 
-/** Varsayılan (mock) servis seti. Backend hazır olunca sadece buradaki bağlama değişir. */
-export const services = createMockServices();
+/**
+ * Varsayılan servis seti.
+ * Jest test ortamında mock servisler, canlı ortamda Supabase servisleri kullanılır.
+ */
+export const services =
+  process.env.NODE_ENV === 'test'
+    ? createMockServices()
+    : createSupabaseServices();
+
