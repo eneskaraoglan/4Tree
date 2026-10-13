@@ -25,7 +25,7 @@ type Props = {
 };
 
 /** Geniş ana buton: solda eylem etiketi, sağda ok; yaprak yeşili dolgu ve ışıma. */
-export function StartButton({ onPress, accessibilityLabel = trRun.start.label }: Props) {
+export function StartButton({ onPress, accessibilityLabel = trRun.start.a11y }: Props) {
   return (
     <View style={styles.wrap}>
       {GLOW_LAYERS.map(({ inset, opacity }) => (

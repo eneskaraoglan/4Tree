@@ -9,6 +9,7 @@ export type { Services } from './types';
 export { KM_PER_TREE, kmToNextTree, kmToTrees, progressToNextTree } from './conversion';
 export { LEVEL_MIN_TREES, getLevelProgress } from './levels';
 export type { ActivityService } from './ActivityService';
+export type { AuthService } from './AuthService';
 export type { BadgeService } from './BadgeService';
 export type { FeedScope, FeedService } from './FeedService';
 export type { ForestService } from './ForestService';

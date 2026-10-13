@@ -24,19 +24,26 @@ function ablativeSuffix(year: number): string {
   return ABLATIVE_BY_TENS[tensDigit];
 }
 
-/** "2025-12-14T..." -> "Aralık 2025'ten beri". Ayrıştırılamazsa null. Saat dilimi kaymasın diye metinden okunur. */
+/**
+ * "2025-12-14T..." -> "Aralık 2025'ten beri". Ayrıştırılamazsa null.
+ * Saat bilgili (UTC "Z" ya da ofsetli) zaman cihazın yerel gününe çevrilir: 28 Şubat 22:00Z, TR'de 1 Mart'tır.
+ * Yalnız tarih içeren metin ("2027-01-02") saat dilimsizdir; metinden okunur, kayma olmaz.
+ */
 export function formatSince(iso: string): string | null {
-  const match = /^(\d{4})-(\d{2})/.exec(iso);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = profileTr.months[Number(match[2]) - 1];
+  let year: number;
+  let monthIndex: number;
+  if (/^\d{4}-\d{2}(-\d{2})?$/.test(iso)) {
+    year = Number(iso.slice(0, 4));
+    monthIndex = Number(iso.slice(5, 7)) - 1;
+  } else {
+    if (!/^\d{4}-\d{2}/.test(iso)) return null;
+    const time = Date.parse(iso);
+    if (Number.isNaN(time)) return null;
+    const local = new Date(time);
+    year = local.getFullYear();
+    monthIndex = local.getMonth();
+  }
+  const month = profileTr.months[monthIndex];
   if (!month) return null;
   return fill(profileTr.since, { date: `${month} ${year}'${ablativeSuffix(year)}` });
-}
-
-/** En eski aktivitenin tarihi ("... beri" satırı için); aktivite yoksa null. */
-export function earliestStartedAt(startedAts: readonly string[]): string | null {
-  if (startedAts.length === 0) return null;
-  // ISO metni sıralaması saat dilimi farkı yüzünden kayabilir; gün başına bakmak yeterli.
-  return [...startedAts].sort((a, b) => a.slice(0, 10).localeCompare(b.slice(0, 10)))[0];
 }

@@ -1,6 +1,7 @@
 import { kmToNextTree, kmToTrees } from '../conversion';
 import { ServiceError } from '../errors';
 import { getLevelProgress } from '../levels';
+import { MAX_ZONES_PER_USER } from '../privacyZoneRules';
 import { createMockServices } from './index';
 import { services } from '../index';
 
@@ -8,7 +9,7 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 describe('mock servisler', () => {
   it('index.ts tüm servisleri tek noktadan verir', () => {
-    expect(Object.keys(services).sort()).toEqual(['activity', 'badge', 'feed', 'forest', 'privacy', 'profile']);
+    expect(Object.keys(services).sort()).toEqual(['activity', 'auth', 'badge', 'feed', 'forest', 'privacy', 'profile']);
   });
 
   it('tüm metotlar Promise döner', () => {
@@ -229,9 +230,9 @@ describe('mock servisler', () => {
 
       it('tepkiler kapsamdan bağımsız kalıcıdır', async () => {
         const s = createMockServices();
-        await s.feed.setClap('post-002', true);
+        await s.feed.setReaction('post-002', 'clap');
         const friends = await s.feed.getPosts('friends');
-        expect(friends.find((p) => p.id === 'post-002')!.myReactions.clapped).toBe(true);
+        expect(friends.find((p) => p.id === 'post-002')!.myReaction).toBe('clap');
       });
     });
 
@@ -314,8 +315,8 @@ describe('mock servisler', () => {
         expect(again.activity.route![0].lat).toBe(originalLat);
         expect(again.activity.route).toHaveLength(originalLength);
 
-        // setClap'in döndürdüğü kopya da paylaşımsız.
-        const updated = await s.feed.setClap(first.id, true);
+        // setReaction'ın döndürdüğü kopya da paylaşımsız.
+        const updated = await s.feed.setReaction(first.id, 'clap');
         updated.activity.route![1].lng = 0;
         const afterReaction = (await s.feed.getPosts()).find((p) => p.id === first.id)!;
         expect(afterReaction.activity.route![1].lng).not.toBe(0);
@@ -335,51 +336,78 @@ describe('mock servisler', () => {
       expect((await s.profile.getProfile()).totalTrees).toBe(7);
     });
 
-    it('setClap güncel gönderiyi döner ve geri alınabilir', async () => {
+    it('setReaction güncel gönderiyi döner ve null ile geri alınır', async () => {
       const s = createMockServices();
       const before = (await s.feed.getPosts()).find((p) => p.id === 'post-002')!;
-      const on = await s.feed.setClap('post-002', true);
-      expect(on.myReactions.clapped).toBe(true);
-      expect(on.clapCount).toBe(before.clapCount + 1);
-      const off = await s.feed.setClap('post-002', false);
-      expect(off.myReactions.clapped).toBe(false);
-      expect(off.clapCount).toBe(before.clapCount);
+      const on = await s.feed.setReaction('post-002', 'water');
+      expect(on.myReaction).toBe('water');
+      expect(on.reactionCounts.water).toBe(before.reactionCounts.water! + 1);
+      const off = await s.feed.setReaction('post-002', null);
+      expect(off.myReaction).toBeNull();
+      expect(off.reactionCounts).toEqual(before.reactionCounts);
     });
 
-    it('aynı değeri iki kez göndermek sayıyı iki kez değiştirmez', async () => {
+    it('kişi başına tek tepki: tür değişince eski türün sayısı düşer, yenisininki artar', async () => {
       const s = createMockServices();
       const before = (await s.feed.getPosts()).find((p) => p.id === 'post-002')!;
-      await s.feed.setClap('post-002', true);
-      const twice = await s.feed.setClap('post-002', true);
-      expect(twice.clapCount).toBe(before.clapCount + 1);
-
-      await s.feed.setWater('post-002', true);
-      const waterTwice = await s.feed.setWater('post-002', true);
-      expect(waterTwice.waterCount).toBe(before.waterCount + 1);
-
-      // Zaten geri alınmış değeri tekrar geri almak da sayıyı düşürmez.
-      await s.feed.setWater('post-002', false);
-      const off = await s.feed.setWater('post-002', false);
-      expect(off.waterCount).toBe(before.waterCount);
+      await s.feed.setReaction('post-002', 'clap');
+      const swapped = await s.feed.setReaction('post-002', 'heart');
+      expect(swapped.myReaction).toBe('heart');
+      expect(swapped.reactionCounts.clap).toBe(before.reactionCounts.clap);
+      expect(swapped.reactionCounts.heart).toBe(before.reactionCounts.heart! + 1);
+      // Mert'in gönderisinde kendi tepkisi (tek) alkış: değişince alkış sayısı 1 azalır.
+      const mert = (await s.feed.getPosts()).find((p) => p.id === 'post-001')!;
+      const moved = await s.feed.setReaction('post-001', 'leaf');
+      expect(moved.reactionCounts.clap).toBe(mert.reactionCounts.clap! - 1);
+      expect(moved.reactionCounts.leaf).toBe(1);
     });
 
-    it('bilinmeyen gönderi not_found hatası verir', async () => {
+    it('aynı değeri iki kez göndermek sayıyı iki kez değiştirmez; son tepki sıfıra inince tür silinir', async () => {
       const s = createMockServices();
-      await expect(s.feed.setWater('yok', true)).rejects.toMatchObject({ code: 'not_found' });
-      await expect(s.feed.setClap('yok', true)).rejects.toBeInstanceOf(ServiceError);
+      const before = (await s.feed.getPosts()).find((p) => p.id === 'post-002')!;
+      await s.feed.setReaction('post-002', 'clap');
+      const twice = await s.feed.setReaction('post-002', 'clap');
+      expect(twice.reactionCounts.clap).toBe(before.reactionCounts.clap! + 1);
+
+      await s.feed.setReaction('post-002', null);
+      const off = await s.feed.setReaction('post-002', null);
+      expect(off.reactionCounts).toEqual(before.reactionCounts);
+
+      // post-006: önce su, sonra güç; su sayısı geri iner, güç geri alınınca anahtar düşer.
+      const solo = await s.feed.setReaction('post-006', 'water');
+      await s.feed.setReaction('post-006', 'power');
+      const dropped = (await s.feed.getPosts()).find((p) => p.id === 'post-006')!;
+      expect(dropped.reactionCounts.water).toBe(solo.reactionCounts.water! - 1);
+      const gone = await s.feed.setReaction('post-006', null);
+      expect(gone.reactionCounts).not.toHaveProperty('power');
+    });
+
+    it('mock tüm tepki türlerini destekler; bilinmeyen tür invalid, bilinmeyen gönderi not_found', async () => {
+      const s = createMockServices();
+      expect(s.feed.supportedReactions).toEqual(['water', 'clap', 'leaf', 'heart', 'power']);
+      await expect(s.feed.setReaction('post-002', 'rocket' as never)).rejects.toMatchObject({ code: 'invalid' });
+      await expect(s.feed.setReaction('yok', 'water')).rejects.toMatchObject({ code: 'not_found' });
+      await expect(s.feed.setReaction('yok', null)).rejects.toBeInstanceOf(ServiceError);
+    });
+
+    it('gecikme/hata sarmalayıcısı supportedReactions alanını bozmaz', async () => {
+      const slow = createMockServices({ latencyMs: 1 });
+      expect(slow.feed.supportedReactions).toHaveLength(5);
+      const broken = createMockServices({ scenario: 'error' });
+      expect(broken.feed.supportedReactions).toHaveLength(5);
     });
 
     it('durum servis örnekleri arasında paylaşılmaz', async () => {
       const a = createMockServices();
       const b = createMockServices();
-      await a.feed.setClap('post-002', true);
+      await a.feed.setReaction('post-002', 'clap');
       const post = (await b.feed.getPosts()).find((p) => p.id === 'post-002')!;
-      expect(post.myReactions.clapped).toBe(false);
+      expect(post.myReaction).toBeNull();
     });
   });
 
   describe('gizlilik', () => {
-    const valid = { label: 'Spor salonu', lat: 41.14, lng: 29.0, radiusM: 150 };
+    const valid = { label: 'Spor salonu', lat: 41.14, lng: 29.0, radiusM: 100 };
 
     it('varsayılan görünürlük ve bölgeler', async () => {
       const settings = await createMockServices().privacy.getSettings();
@@ -401,6 +429,11 @@ describe('mock servisler', () => {
     it.each([
       ['boş etiket', { label: '' }],
       ['yalnızca boşluk etiketi', { label: '   ' }],
+      ['sıfır genişlikli etiket', { label: '\u200B\u200D' }],
+      ['kontrol karakterli etiket', { label: 'Ev\nİş' }],
+      ['bidi karakterli etiket', { label: 'Ev\u202E' }],
+      ['uzun etiket', { label: 'a'.repeat(25) }],
+      ['izinsiz yarıçap', { radiusM: 150 }],
       ['sıfır yarıçap', { radiusM: 0 }],
       ['negatif yarıçap', { radiusM: -50 }],
       ['NaN yarıçap', { radiusM: NaN }],
@@ -417,8 +450,21 @@ describe('mock servisler', () => {
 
     it('sınır değerleri kabul edilir ve etiket kırpılır', async () => {
       const s = createMockServices();
-      const settings = await s.privacy.addZone({ label: '  Ev 2 ', lat: -90, lng: 180, radiusM: 1 });
-      expect(settings.zones.at(-1)).toMatchObject({ label: 'Ev 2', lat: -90, lng: 180, radiusM: 1 });
+      const settings = await s.privacy.addZone({ label: '  Ev 2 ', lat: -90, lng: 180, radiusM: 500 });
+      expect(settings.zones.at(-1)).toMatchObject({ label: 'Ev 2', lat: -90, lng: 180, radiusM: 500 });
+    });
+
+    it('geçersiz görünürlük değeri invalid ile reddedilir, ayar değişmez', async () => {
+      const s = createMockServices();
+      const before = await s.privacy.getSettings();
+      await expect(s.privacy.setVisibility('everyone' as never)).rejects.toMatchObject({ code: 'invalid' });
+      expect(await s.privacy.getSettings()).toEqual(before);
+    });
+
+    it('bölge sınırı aşılınca reddedilir', async () => {
+      const s = createMockServices({ scenario: 'empty' });
+      for (let i = 0; i < MAX_ZONES_PER_USER; i++) await s.privacy.addZone({ ...valid, label: `Bölge ${i}` });
+      await expect(s.privacy.addZone(valid)).rejects.toMatchObject({ code: 'invalid' });
     });
 
     it('olmayan bölgeyi silmek hata verir', async () => {
@@ -447,7 +493,7 @@ describe('mock servisler', () => {
 
     it('boş durumda da yazma çağrıları çalışır', async () => {
       const s = createMockServices({ scenario: 'empty' });
-      const settings = await s.privacy.addZone({ label: 'Ev', lat: 41, lng: 29, radiusM: 200 });
+      const settings = await s.privacy.addZone({ label: 'Ev', lat: 41, lng: 29, radiusM: 250 });
       expect(settings.zones).toHaveLength(1);
       expect(await s.activity.getActivity('activity-001')).toBeNull();
     });
@@ -464,8 +510,7 @@ describe('mock servisler', () => {
         s.forest.getTrees(),
         s.badge.getBadges(),
         s.feed.getPosts(),
-        s.feed.setClap('post-001', true),
-        s.feed.setWater('post-001', true),
+        s.feed.setReaction('post-001', 'water'),
         s.privacy.getSettings(),
         s.privacy.setVisibility('public'),
         s.privacy.addZone({ label: 'Ev', lat: 41, lng: 29, radiusM: 100 }),

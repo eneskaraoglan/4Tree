@@ -1,4 +1,4 @@
-export type ServiceErrorCode = 'network' | 'not_found' | 'invalid';
+export type ServiceErrorCode = 'network' | 'not_found' | 'invalid' | 'unauthenticated';
 
 /** Servis katmanının fırlattığı hata. `message` kullanıcıya gösterilebilir Türkçe metindir. */
 export class ServiceError extends Error {

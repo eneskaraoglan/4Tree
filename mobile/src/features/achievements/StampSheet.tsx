@@ -11,11 +11,11 @@ import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, w
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
+import { focusAccessibility } from '@/components/accessibilityFocus';
 import { achievements } from '@/i18n';
 import { colors, radius, screenPadding, spacing, touch } from '@/theme';
 import type { Badge } from '@/types';
 
-import { focusAccessibility } from './focusAccessibility';
 import { formatLongDate } from './formatBadgeDate';
 import { PostageStamp } from './PostageStamp';
 

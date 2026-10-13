@@ -31,6 +31,16 @@ describe('useAppFonts', () => {
     expect(SplashScreen.hideAsync).toHaveBeenCalledTimes(1);
   });
 
+  it('holdSplash true iken fontlar hazır olsa da splash açık kalır, bırakılınca kapanır', async () => {
+    mockUseFonts.mockReturnValue([true, null]);
+    const { result, rerender } = await renderHook((hold: boolean) => useAppFonts(hold), { initialProps: true });
+    expect(result.current).toBe(true);
+    expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+    await rerender(false);
+    expect(SplashScreen.hideAsync).toHaveBeenCalledTimes(1);
+  });
+
   it('font hatasında splash kapanır ve uygulama devam eder', async () => {
     mockUseFonts.mockReturnValue([false, new Error('font yüklenemedi')]);
     const { result } = await renderHook(() => useAppFonts());

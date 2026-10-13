@@ -13,8 +13,9 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 /**
  * Fontları yükler. Yüklenince, hata verince ya da zaman aşımında splash'i kapatır ve `true` döner.
  * Hata/zaman aşımında metinler sistem fontuna düşer.
+ * `holdSplash` true iken (ör. oturum hâlâ yükleniyor) fontlar hazır olsa da splash açık kalır.
  */
-export function useAppFonts(): boolean {
+export function useAppFonts(holdSplash = false): boolean {
   const [loaded, error] = useFonts(fontAssets);
   const [timedOut, setTimedOut] = useState(false);
   const ready = loaded || error != null || timedOut;
@@ -25,8 +26,8 @@ export function useAppFonts(): boolean {
   }, []);
 
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
+    if (ready && !holdSplash) SplashScreen.hideAsync().catch(() => {});
+  }, [ready, holdSplash]);
 
   return ready;
 }

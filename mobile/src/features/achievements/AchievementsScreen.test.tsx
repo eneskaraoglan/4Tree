@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ServicesProvider, createMockServices, type Services } from '@/services';
 
 import { AchievementsScreen } from './AchievementsScreen';
-import { focusAccessibility } from './focusAccessibility';
+import { focusAccessibility } from '@/components/accessibilityFocus';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../../components/illustration/reanimatedTestMock').createReanimatedMock());
 jest.mock('./formatBadgeDate', () => {
@@ -29,7 +29,7 @@ jest.mock('expo-router', () => ({
     }, [callback]);
   },
 }));
-jest.mock('./focusAccessibility', () => ({ focusAccessibility: jest.fn() }));
+jest.mock('@/components/accessibilityFocus', () => ({ focusAccessibility: jest.fn() }));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },

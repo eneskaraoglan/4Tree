@@ -16,18 +16,18 @@ type Props = {
   now: Date;
 };
 
-/** "Son koşun": kartsız tek satır. Solda mini rota, ortada mesafe + süre, sağda göreli tarih. */
+/** "Son aktiviten": kartsız tek satır. Solda mini rota, ortada tür + mesafe + süre, sağda göreli tarih. */
 export function LastActivityRow({ activity, now }: Props) {
-  const label = activity.type === 'walk' ? trRun.last.walk : trRun.last.run;
+  const typeLabel = activity.type === 'walk' ? trRun.last.walk : trRun.last.run;
   return (
     <View style={styles.row}>
       <RouteLine points={activity.route} width={ROUTE_WIDTH} height={ROUTE_HEIGHT} strokeWidth={2} />
       <View style={styles.stats}>
         <AppText variant="small" color="textSecondary">
-          {label}
+          {trRun.last.title}
         </AppText>
         <AppText variant="title3">
-          {trRun.last.stats(formatKm(activity.distanceKm), formatDuration(activity.durationSec))}
+          {trRun.last.stats(typeLabel, formatKm(activity.distanceKm), formatDuration(activity.durationSec))}
         </AppText>
       </View>
       <AppText variant="secondary" color="textSecondary">

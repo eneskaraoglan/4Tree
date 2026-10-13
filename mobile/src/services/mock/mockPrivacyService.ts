@@ -1,22 +1,10 @@
-import type { PrivacySettings, PrivacyZone } from '@/types';
+import type { PrivacySettings, PrivacyZone, Visibility } from '@/types';
 
 import { ServiceError } from '../errors';
 import type { PrivacyService } from '../PrivacyService';
+import { assertZoneCapacity, validateZone } from '../privacyZoneRules';
 
-function validateZone(zone: Omit<PrivacyZone, 'id'>): void {
-  if (zone.label.trim().length === 0) {
-    throw new ServiceError('invalid', 'Bölgeye bir ad ver.');
-  }
-  if (!Number.isFinite(zone.radiusM) || zone.radiusM <= 0) {
-    throw new ServiceError('invalid', 'Yarıçap sıfırdan büyük olmalı.');
-  }
-  if (!Number.isFinite(zone.lat) || zone.lat < -90 || zone.lat > 90) {
-    throw new ServiceError('invalid', 'Enlem -90 ile 90 arasında olmalı.');
-  }
-  if (!Number.isFinite(zone.lng) || zone.lng < -180 || zone.lng > 180) {
-    throw new ServiceError('invalid', 'Boylam -180 ile 180 arasında olmalı.');
-  }
-}
+const VISIBILITIES: Visibility[] = ['public', 'friends', 'private'];
 
 export function createMockPrivacyService(initial: PrivacySettings): PrivacyService {
   let settings: PrivacySettings = {
@@ -33,12 +21,14 @@ export function createMockPrivacyService(initial: PrivacySettings): PrivacyServi
   return {
     getSettings: async () => snapshot(),
     setVisibility: async (visibility) => {
+      if (!VISIBILITIES.includes(visibility)) throw new ServiceError('invalid', 'Görünürlük değeri geçersiz.');
       settings = { ...settings, visibility };
       return snapshot();
     },
     addZone: async (zone) => {
-      validateZone(zone);
-      const created: PrivacyZone = { ...zone, label: zone.label.trim(), id: `zone-new-${nextZoneId++}` };
+      const label = validateZone(zone);
+      assertZoneCapacity(settings.zones.length);
+      const created: PrivacyZone = { ...zone, label, id: `zone-new-${nextZoneId++}` };
       settings = { ...settings, zones: [...settings.zones, created] };
       return snapshot();
     },

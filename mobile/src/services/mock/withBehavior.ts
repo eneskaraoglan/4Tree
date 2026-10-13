@@ -7,6 +7,8 @@ export function withBehavior<T extends object>(
 ): T {
   if (!options.fail && options.latencyMs <= 0) return service;
   const wrapped = Object.entries(service).map(([key, fn]) => {
+    // Metot olmayan alanlar (örn. FeedService.supportedReactions) olduğu gibi geçer.
+    if (typeof fn !== 'function') return [key, fn] as const;
     const call = fn as (...args: unknown[]) => Promise<unknown>;
     return [
       key,

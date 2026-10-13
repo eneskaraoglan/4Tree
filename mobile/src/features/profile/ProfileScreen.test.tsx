@@ -325,12 +325,45 @@ describe('ProfileScreen, durumlar', () => {
     expect(screen.queryByText(profileTr.loadError)).toBeNull();
   });
 
-  it('"beri" satırı alınamazsa ekran yine açılır', async () => {
+  it('"beri" satırı yalnız profile.joinedAt alanından gelir; aktivite listesine bakılmaz', async () => {
     const services = createMockServices();
-    services.activity.getActivities = jest.fn().mockRejectedValue(new ServiceError('network', 'x'));
+    const getActivities = jest.spyOn(services.activity, 'getActivities');
+    const real = services.profile.getProfile;
+    // Son aktivitelerden çok önce katılmış bir kullanıcı: tarih listeden değil profilden okunmalı.
+    services.profile.getProfile = async () => ({ ...(await real()), joinedAt: '2025-12-14T10:00:00+03:00' });
+    await renderProfile(services);
+
+    expect(await screen.findByText("Aralık 2025'ten beri")).toBeTruthy();
+    expect(getActivities).not.toHaveBeenCalled();
+  });
+
+  it('joinedAt yoksa "beri" satırı görünmez, ekran yine açılır', async () => {
+    const services = createMockServices();
+    const real = services.profile.getProfile;
+    services.profile.getProfile = async () => ({ ...(await real()), joinedAt: undefined });
     await renderProfile(services);
 
     expect(await screen.findByText('Elif')).toBeTruthy();
     expect(screen.queryByText(/beri$/)).toBeNull();
+  });
+
+  it('"Profili düzenle" satırı onEditProfile verilince görünür ve dokununca çağırır; verilmezse yoktur', async () => {
+    const onEditProfile = jest.fn();
+    const services = createMockServices();
+    await render(
+      <ServicesProvider services={services}>
+        <ProfileScreen onEditProfile={onEditProfile} />
+      </ServicesProvider>,
+    );
+    await screen.findByText('Elif');
+
+    await fireEvent.press(screen.getByRole('button', { name: profileTr.edit.open }));
+    expect(onEditProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('onEditProfile yoksa düzenleme satırı görünmez', async () => {
+    await renderScenario();
+    await screen.findByText('Elif');
+    expect(screen.queryByRole('button', { name: profileTr.edit.open })).toBeNull();
   });
 });

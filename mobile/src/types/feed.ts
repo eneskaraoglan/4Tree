@@ -16,6 +16,11 @@ export type FeedActivitySummary = {
   route?: RoutePoint[];
 };
 
+/** Tepki türleri; kişi başına bir gönderide tek tepki. Sıra/ikon/renk: components/reactions/reactions.ts. */
+export type ReactionType = 'water' | 'clap' | 'leaf' | 'heart' | 'power';
+
+export type ReactionCounts = Partial<Record<ReactionType, number>>;
+
 export type FeedPost = {
   id: string;
   author: FeedAuthor;
@@ -24,11 +29,24 @@ export type FeedPost = {
   caption?: string;
   activity: FeedActivitySummary;
   treesEarned: number;
-  clapCount: number;
-  waterCount: number;
-  /** Giriş yapmış kullanıcının bu gönderiye verdiği tepkiler. */
-  myReactions: { clapped: boolean; watered: boolean };
+  /** Türe göre tepki sayıları (kullanıcının kendi tepkisi dahil); sayısı 0 olan tür eksik olabilir. */
+  reactionCounts: ReactionCounts;
+  /** Giriş yapmış kullanıcının bu gönderideki tek tepkisi; yoksa null. */
+  myReaction: ReactionType | null;
   commentCount: number;
   /** ISO 8601. */
   createdAt: string;
+};
+
+export type FeedComment = {
+  id: string;
+  postId: string;
+  author: FeedAuthor;
+  body: string;
+  parentId?: string | null;
+  reactionCounts: ReactionCounts;
+  myReaction: ReactionType | null;
+  createdAt: string;
+  /** Alt yanıtlar (iki seviye: ana yorum ve yanıtları). */
+  replies?: FeedComment[];
 };

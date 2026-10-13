@@ -1,5 +1,6 @@
 import type { Services } from '../types';
 import { createSupabaseActivityService } from './supabaseActivityService';
+import { createSupabaseAuthService } from './supabaseAuthService';
 import { createSupabaseBadgeService } from './supabaseBadgeService';
 import { createSupabaseFeedService } from './supabaseFeedService';
 import { createSupabaseForestService } from './supabaseForestService';
@@ -14,5 +15,6 @@ export function createSupabaseServices(): Services {
     badge: createSupabaseBadgeService(),
     feed: createSupabaseFeedService(),
     privacy: createSupabasePrivacyService(),
+    auth: createSupabaseAuthService(),
   };
 }

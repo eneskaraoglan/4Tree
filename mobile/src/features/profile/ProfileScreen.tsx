@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
@@ -14,10 +15,14 @@ import { useProfileData } from './useProfileData';
 type Props = {
   /** Çıkış onaylanınca çağrılır. Oturum katmanı gelene dek bağlanmaz. */
   onSignOut?: () => void;
+  /** Verilirse başlığın altında "Profili düzenle" satırı görünür. */
+  onEditProfile?: () => void;
+  /** Verilirse başlığın altında "Arkadaşlarım" satırı görünür. */
+  onOpenFriends?: () => void;
 };
 
 /** Profil sekmesi: üstte kişisel karne, altında gizlilik ve çıkış. */
-export function ProfileScreen({ onSignOut }: Props) {
+export function ProfileScreen({ onSignOut, onEditProfile, onOpenFriends }: Props) {
   const { state, retry } = useProfileData();
 
   if (state.status === 'loading') {
@@ -59,6 +64,44 @@ export function ProfileScreen({ onSignOut }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}>
         <ProfileHeader profile={profile} sinceLabel={sinceLabel} />
+        <View style={styles.actionRows}>
+          {onEditProfile ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={profileTr.edit.open}
+              onPress={onEditProfile}
+              style={({ pressed }) => [styles.editRow, pressed && styles.pressed]}>
+              <AppText variant="body" color="primary">
+                {profileTr.edit.open}
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={EDIT_ICON_SIZE}
+                color={colors.primary}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            </Pressable>
+          ) : null}
+          {onOpenFriends ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={profileTr.friends.open}
+              onPress={onOpenFriends}
+              style={({ pressed }) => [styles.editRow, pressed && styles.pressed]}>
+              <AppText variant="body" color="primary">
+                {profileTr.friends.open}
+              </AppText>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={EDIT_ICON_SIZE}
+                color={colors.primary}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            </Pressable>
+          ) : null}
+        </View>
         <View style={styles.karne}>
           <Karne profile={profile} />
         </View>
@@ -73,7 +116,23 @@ export function ProfileScreen({ onSignOut }: Props) {
   );
 }
 
+const EDIT_ICON_SIZE = 24;
+
 const styles = StyleSheet.create({
+  actionRows: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  editRow: {
+    minHeight: touch.min,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    columnGap: spacing.xs,
+  },
   content: { paddingBottom: spacing.huge },
   karne: { marginTop: spacing.huge },
   privacy: { marginTop: spacing.huge },

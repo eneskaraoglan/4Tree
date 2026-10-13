@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { AccessibilityInfo, findNodeHandle, Platform, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { setReducedMotion } from '@/components/illustration/reanimatedTestMock';
@@ -9,6 +10,10 @@ import { formatPlantedDate } from './format';
 import { TreeSheet } from './TreeSheet';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('./testMocks').createSheetReanimatedMock());
+jest.mock('react-native/Libraries/ReactNative/RendererProxy', () => ({
+  ...jest.requireActual('react-native/Libraries/ReactNative/RendererProxy'),
+  findNodeHandle: jest.fn(),
+}));
 jest.mock('react-native-worklets', () => jest.requireActual('./testMocks').createWorkletsMock());
 
 const METRICS = {
@@ -30,7 +35,16 @@ async function renderSheet(tree: ForestTree, onDismiss = jest.fn()) {
   return onDismiss;
 }
 
-afterEach(() => setReducedMotion(false));
+const originalOS = Platform.OS;
+function setOS(os: typeof Platform.OS) {
+  Object.defineProperty(Platform, 'OS', { configurable: true, get: () => os });
+}
+
+afterEach(() => {
+  setReducedMotion(false);
+  setOS(originalOS);
+  jest.restoreAllMocks();
+});
 
 describe('TreeSheet', () => {
   it('türü, bölgeyi (tek yerde), tarih ve sertifika satırını ve tek "Örnek" etiketini gösterir', async () => {
@@ -94,5 +108,47 @@ describe('TreeSheet', () => {
     const modal = screen.root?.queryAll((node) => node.type === 'Modal')[0];
     expect(modal?.props.navigationBarTranslucent).toBe(true);
     expect(modal?.props.statusBarTranslucent).toBe(true);
+  });
+
+  it('native: açılışta ekran okuyucu odağı başlığa gider', async () => {
+    setOS('ios');
+    setReducedMotion(true);
+    const sendEvent = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockImplementation(() => undefined);
+    sendEvent.mockClear();
+    await renderSheet(await makeTree());
+
+    await waitFor(() => expect(sendEvent).toHaveBeenCalledWith(expect.anything(), 'focus'));
+  });
+
+  it('web: findNodeHandle/setAccessibilityFocus çağrılmaz; başlık DOM düğümü tabindex=-1 alıp focus() edilir', async () => {
+    setOS('web');
+    setReducedMotion(true);
+    expect(jest.isMockFunction(findNodeHandle)).toBe(true);
+    (findNodeHandle as jest.Mock).mockClear();
+    const sendEvent = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockImplementation(() => undefined);
+    const setFocus = jest.spyOn(AccessibilityInfo, 'setAccessibilityFocus').mockImplementation(() => undefined);
+    sendEvent.mockClear();
+    setFocus.mockClear();
+    // Jest'te Text ref'i sınıf örneğidir; web'deki DOM düğümünü prototipine focus/setAttribute ekleyerek taklit ederiz.
+    const dom = Text.prototype as unknown as Record<string, unknown>;
+    const focus = jest.fn();
+    const setAttribute = jest.fn();
+    Object.assign(dom, { focus, setAttribute, hasAttribute: () => false });
+    try {
+      const onDismiss = await renderSheet(await makeTree());
+      await waitFor(() => expect(focus).toHaveBeenCalledWith({ preventScroll: true }));
+      expect(setAttribute).toHaveBeenCalledWith('tabindex', '-1');
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Kapat' }));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    } finally {
+      delete dom.focus;
+      delete dom.setAttribute;
+      delete dom.hasAttribute;
+    }
+
+    expect(findNodeHandle).not.toHaveBeenCalled();
+    expect(setFocus).not.toHaveBeenCalled();
+    expect(sendEvent).not.toHaveBeenCalled();
   });
 });

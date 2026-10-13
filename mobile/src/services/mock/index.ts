@@ -4,6 +4,7 @@ import type { Services } from '../types';
 import { buildMockActivities } from './mockActivities';
 import { MOCK_BADGES } from './mockBadges';
 import { createMockActivityService } from './mockActivityService';
+import { createMockAuthService } from './mockAuthService';
 import { createMockBadgeService } from './mockBadgeService';
 import { buildMockFeed } from './mockFeed';
 import { createMockFeedService } from './mockFeedService';
@@ -22,11 +23,13 @@ export type MockServicesOptions = {
   scenario?: MockScenario;
   /** Her çağrıya eklenen yapay gecikme (ms). Varsayılan 0. */
   latencyMs?: number;
+  /** Oturum açık başlasın mı. Varsayılan false: uygulama karşılama ekranıyla açılır. */
+  signedIn?: boolean;
 };
 
 /** Her çağrıda taze durumlu (feed tepkileri, gizlilik vb.) yeni bir mock servis seti üretir. */
 export function createMockServices(options: MockServicesOptions = {}): Services {
-  const { scenario = 'default', latencyMs = 0 } = options;
+  const { scenario = 'default', latencyMs = 0, signedIn = false } = options;
   const isEmpty = scenario === 'empty';
 
   const activities = isEmpty ? [] : buildMockActivities();
@@ -45,5 +48,7 @@ export function createMockServices(options: MockServicesOptions = {}): Services 
       createMockPrivacyService(isEmpty ? { ...MOCK_PRIVACY, zones: [] } : MOCK_PRIVACY),
       behavior,
     ),
+    // Oturum servisi dinleyici (senkron) içerdiği için withBehavior'a girmez; gecikme ve hata kendi içinde uygulanır.
+    auth: createMockAuthService({ signedIn, fail: behavior.fail, latencyMs }),
   };
 }

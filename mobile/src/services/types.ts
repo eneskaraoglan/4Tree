@@ -1,4 +1,5 @@
 import type { ActivityService } from './ActivityService';
+import type { AuthService } from './AuthService';
 import type { BadgeService } from './BadgeService';
 import type { FeedService } from './FeedService';
 import type { ForestService } from './ForestService';
@@ -12,4 +13,5 @@ export type Services = {
   badge: BadgeService;
   feed: FeedService;
   privacy: PrivacyService;
+  auth: AuthService;
 };

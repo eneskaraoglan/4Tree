@@ -21,14 +21,5 @@ export const SKELETON = {
   posts: 2,
 } as const;
 
-/** Tepki butonu: ikon, "taş" zemin ve sıçrama ölçüleri. */
-export const REACTION = {
-  iconSize: 20,
-  pebbleSize: 32,
-  bounceScale: 1.3,
-  bounceUpMs: 110,
-  bounceDownMs: 170,
-} as const;
-
 /** Sekme altı çizgisinin kalınlığı. */
 export const TAB_UNDERLINE = 2;

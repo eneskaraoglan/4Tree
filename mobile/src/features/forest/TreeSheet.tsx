@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
-  AccessibilityInfo,
-  findNodeHandle,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +10,7 @@ import {
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { focusAccessibility } from '@/components/accessibilityFocus';
 import { AppText } from '@/components/AppText';
 import { Tree } from '@/components/illustration';
 import { forestTr } from '@/i18n';
@@ -41,10 +40,7 @@ export function TreeSheet({ tree, onDismiss }: Props) {
 
   // Açılışta odak sheet başlığına gider (ekran okuyucu); kayma bittikten sonra.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const handle = findNodeHandle(titleRef.current);
-      if (handle != null) AccessibilityInfo.setAccessibilityFocus(handle);
-    }, reduceMotion ? 0 : OPEN_MS + 60);
+    const timer = setTimeout(() => focusAccessibility(titleRef.current), reduceMotion ? 0 : OPEN_MS + 60);
     return () => clearTimeout(timer);
   }, [reduceMotion]);
 

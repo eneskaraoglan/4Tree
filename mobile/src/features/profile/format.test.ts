@@ -1,4 +1,4 @@
-import { earliestStartedAt, formatNumber, formatSince } from './format';
+import { formatNumber, formatSince } from './format';
 
 describe('formatNumber', () => {
   it('ondalık virgül ve binlik nokta kullanır', () => {
@@ -52,13 +52,16 @@ describe('formatSince', () => {
     expect(formatSince('dün')).toBeNull();
     expect(formatSince('2026-13-01')).toBeNull();
   });
-});
 
-describe('earliestStartedAt', () => {
-  it('en eski tarihi seçer, liste boşsa null döner', () => {
-    expect(earliestStartedAt(['2026-10-05T07:00:00+03:00', '2026-08-23T07:30:00+03:00'])).toBe(
-      '2026-08-23T07:30:00+03:00',
-    );
-    expect(earliestStartedAt([])).toBeNull();
+  it('UTC/ofsetli zamanı cihazın yerel ayına çevirir (TZ=Europe/Istanbul): 28 Şubat 22:00Z -> Mart', () => {
+    expect(new Date('2026-02-28T22:00:00Z').getMonth()).toBe(2); // jest TZ ayarı doğrulaması
+    expect(formatSince('2026-02-28T22:00:00Z')).toBe("Mart 2026'dan beri");
+    expect(formatSince('2026-02-28T20:59:59Z')).toBe("Şubat 2026'dan beri");
+    expect(formatSince('2025-12-31T21:30:00.000000+00:00')).toBe("Ocak 2026'dan beri");
+    expect(formatSince('2026-03-01T01:00:00+03:00')).toBe("Mart 2026'dan beri");
+  });
+
+  it('yalnız tarih içeren metin saat dilimiyle kaymaz', () => {
+    expect(formatSince('2026-03-01')).toBe("Mart 2026'dan beri");
   });
 });

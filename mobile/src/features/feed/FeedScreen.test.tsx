@@ -12,19 +12,20 @@ import {
   type MockScenario,
   type Services,
 } from '@/services';
-import type { FeedPost } from '@/types';
+import type { FeedPost, ReactionType } from '@/types';
 
 import { FeedScreen } from './FeedScreen';
 
 jest.mock('react-native-reanimated', () => {
   const mock = jest.requireActual('../../components/illustration/reanimatedTestMock').createReanimatedMock();
-  // Ortak sahtede cancelAnimation yok; ReactionButton çıkışta çağırır.
+  // Ortak sahtede cancelAnimation yok; ReactionBar çıkışta çağırır.
   const cancelAnimation = jest.fn();
   return { ...mock, cancelAnimation, default: { ...mock.default, cancelAnimation } };
 });
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
-  ImpactFeedbackStyle: { Light: 'light' },
+  selectionAsync: jest.fn(() => Promise.resolve()),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },
 }));
 
 /** Mock gönderi 001 08:05 (+03:00); "şimdi" ondan 2 saat sonrası. */
@@ -57,10 +58,21 @@ async function renderScenario(scenario: MockScenario, latencyMs = 0) {
   await renderFeed(createMockServices({ scenario, latencyMs }));
 }
 
-/** Zeynep'in gönderisi: 24 alkış, 9 su, henüz tepki yok. */
+/** Zeynep'in gönderisi: 24 alkış, 9 su, 3 yaprak, 2 kalp; henüz tepkim yok. */
 const zeynep = () => within(screen.getByTestId('post-post-002'));
-const CLAP_24 = 'Alkışla, 24 kişi alkışladı';
-const CLAP_25_ON = 'Alkışla, 25 kişi alkışladı, seçili';
+const zeynepButton = () => zeynep().getByTestId('reactions-post-002-button');
+const GIVE = 'Tepki ver';
+const WATER_ON = 'Tepkin: Su ver, geri almak için dokun';
+const CLAP_ON = 'Tepkin: Alkışla, geri almak için dokun';
+/** Zeynep'in özeti: 38 tepki. Su vermek 39 yapar. */
+const SUMMARY_38 = '38 tepki: Su ver 9, Alkışla 24, Yaprak 3, Kalp 2';
+const SUMMARY_WATER_39 = '39 tepki: Su ver 10, Alkışla 24, Yaprak 3, Kalp 2';
+
+const setReactionMock = (base: Services, pending?: Promise<void>) =>
+  jest.fn(async (id: string, reaction: ReactionType | null) => {
+    if (pending) await pending;
+    return base.feed.setReaction(id, reaction);
+  });
 
 describe('FeedScreen', () => {
   // FlatList toplu çizim zamanlayıcısı (50 ms) test bitince act dışında tetiklenip uyarı vermesin.
@@ -87,8 +99,11 @@ describe('FeedScreen', () => {
     expect(mert.getByText('Koşu · 56 dk · Belgrad Ormanı')).toBeTruthy();
     expect(mert.getByLabelText('10,2 km rota çizimi')).toBeTruthy();
     expect(mert.getByText('3 yorum')).toBeTruthy();
-    expect(mert.getByRole('button', { name: 'Alkışla, 18 kişi alkışladı, seçili', selected: true })).toBeTruthy();
-    expect(mert.getByRole('button', { name: 'Su ver, 4 kişi su verdi', selected: false })).toBeTruthy();
+    // Tek konum: tek tepki düğmesi (kendi tepkim) ve tek özet; eski iki düğme yok.
+    expect(mert.getByRole('button', { name: CLAP_ON, selected: true })).toBeTruthy();
+    expect(mert.getAllByRole('button')).toHaveLength(1);
+    expect(mert.getByLabelText('23 tepki: Su ver 4, Alkışla 18, Güç 1')).toBeTruthy();
+    expect(zeynep().getByRole('button', { name: GIVE, selected: false })).toBeTruthy();
     expect(mert.queryByTestId('tree-glyphs')).toBeNull();
 
     expect(zeynep().getByText('Yürüyüş · 1 sa 41 dk · Kaz Dağları')).toBeTruthy();
@@ -103,9 +118,8 @@ describe('FeedScreen', () => {
       author: { id: 'u', name: 'Defne', avatarInitial: 'D' },
       activity: { type: 'run', distanceKm: 42.2, durationSec: 14000, paceSecPerKm: 330, place: 'Bolu' },
       treesEarned: 7,
-      clapCount: 0,
-      waterCount: 0,
-      myReactions: { clapped: false, watered: false },
+      reactionCounts: {},
+      myReaction: null,
       commentCount: 0,
       createdAt: '2026-10-10T08:00:00+03:00',
     };
@@ -130,107 +144,135 @@ describe('FeedScreen', () => {
     expect(contours.length).toBeLessThanOrEqual(4);
   });
 
-  it('alkışı iyimser günceller, haptic verir ve onaylanınca sayıyı korur', async () => {
+  it('dokununca Su ver: iyimser günceller, haptic verir ve onaylanınca korur', async () => {
     const pending = defer<void>();
     const base = createMockServices();
-    const setClap = jest.fn((id: string, value: boolean) =>
-      pending.promise.then(() => base.feed.setClap(id, value)),
-    );
-    await renderFeed(withFeed({ setClap }, base));
+    const setReaction = setReactionMock(base, pending.promise);
+    await renderFeed(withFeed({ setReaction }, base));
     await screen.findByTestId('post-post-002');
+    expect(zeynep().getByLabelText(SUMMARY_38)).toBeTruthy();
 
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
+    await fireEvent.press(zeynepButton());
     // Sunucu yanıtı gelmeden ekran güncellenir.
-    expect(zeynep().getByRole('button', { name: CLAP_25_ON, selected: true })).toBeTruthy();
+    expect(zeynep().getByRole('button', { name: WATER_ON, selected: true })).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_WATER_39)).toBeTruthy();
     expect(Haptics.impactAsync).toHaveBeenCalledWith('light');
-    expect(setClap).toHaveBeenCalledWith('post-002', true);
+    expect(setReaction).toHaveBeenCalledWith('post-002', 'water');
 
     await act(async () => pending.resolve());
-    expect(zeynep().getByLabelText(CLAP_25_ON)).toBeTruthy();
+    expect(zeynep().getByLabelText(WATER_ON)).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_WATER_39)).toBeTruthy();
   });
 
-  it('su vermeyi geri alır (ikinci dokunuş) ve sayıyı düşürür', async () => {
-    await renderFeed();
+  it('aynı düğmeye tekrar dokunmak tepkiyi geri alır ve sayıyı düşürür', async () => {
+    const base = createMockServices();
+    const setReaction = setReactionMock(base);
+    await renderFeed(withFeed({ setReaction }, base));
     await screen.findByTestId('post-post-002');
 
-    await fireEvent.press(zeynep().getByLabelText('Su ver, 9 kişi su verdi'));
-    expect(await zeynep().findByLabelText('Su ver, 10 kişi su verdi, seçili')).toBeTruthy();
-    await fireEvent.press(zeynep().getByLabelText('Su ver, 10 kişi su verdi, seçili'));
-    expect(await zeynep().findByLabelText('Su ver, 9 kişi su verdi')).toBeTruthy();
+    await fireEvent.press(zeynepButton());
+    expect(await zeynep().findByLabelText(WATER_ON)).toBeTruthy();
+    await fireEvent.press(zeynepButton());
+    expect(await zeynep().findByLabelText(GIVE)).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_38)).toBeTruthy();
+    expect(setReaction.mock.calls.map((c) => c[1])).toEqual(['water', null]);
+  });
+
+  it('basılı tutunca seçici açılır; seçilen tepki düğmeyi ve özeti günceller, seçici kapanır', async () => {
+    const base = createMockServices();
+    const setReaction = setReactionMock(base);
+    await renderFeed(withFeed({ setReaction }, base));
+    await screen.findByTestId('post-post-002');
+    expect(screen.queryByTestId('reaction-picker')).toBeNull();
+
+    await fireEvent(zeynepButton(), 'longPress');
+    expect(await screen.findByTestId('reaction-picker')).toBeTruthy();
+    expect(Haptics.impactAsync).toHaveBeenCalledWith('medium');
+    for (const label of ['Su ver', 'Alkışla', 'Yaprak', 'Kalp', 'Güç']) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeTruthy();
+    }
+
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Kalp' }));
+    expect(screen.queryByTestId('reaction-picker')).toBeNull();
+    expect(setReaction).toHaveBeenCalledWith('post-002', 'heart');
+    expect(await zeynep().findByLabelText('Tepkin: Kalp, geri almak için dokun')).toBeTruthy();
+    expect(zeynep().getByLabelText('39 tepki: Su ver 9, Alkışla 24, Yaprak 3, Kalp 3')).toBeTruthy();
+  });
+
+  it('servis yalnız su ve alkışı destekliyorsa seçicide başka tür çıkmaz', async () => {
+    const base = createMockServices();
+    await renderFeed(withFeed({ supportedReactions: ['water', 'clap'] }, base));
+    await screen.findByTestId('post-post-002');
+    await fireEvent(zeynepButton(), 'longPress');
+    expect(screen.getAllByRole('menuitem').map((el) => el.props.accessibilityLabel)).toEqual(['Su ver', 'Alkışla']);
+    expect(screen.queryByRole('menuitem', { name: 'Kalp' })).toBeNull();
   });
 
   it('hata olursa tepkiyi geri alır ve kısa Türkçe mesaj gösterir', async () => {
-    const setClap = jest.fn().mockRejectedValue(new ServiceError('network', 'Sunucuya ulaşılamadı.'));
-    await renderFeed(withFeed({ setClap }));
+    const setReaction = jest.fn().mockRejectedValue(new ServiceError('network', 'Sunucuya ulaşılamadı.'));
+    await renderFeed(withFeed({ setReaction }));
     await screen.findByTestId('post-post-002');
 
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
-    expect(await screen.findByText('Alkış gönderilemedi. Tekrar dene.')).toBeTruthy();
-    expect(zeynep().getByRole('button', { name: CLAP_24, selected: false })).toBeTruthy();
-  });
-
-  it('su hatasında kendi mesajını gösterir', async () => {
-    const setWater = jest.fn().mockRejectedValue(new ServiceError('network', 'x'));
-    await renderFeed(withFeed({ setWater }));
-    await screen.findByTestId('post-post-002');
-
-    await fireEvent.press(zeynep().getByLabelText('Su ver, 9 kişi su verdi'));
-    expect(await screen.findByText('Su verilemedi. Tekrar dene.')).toBeTruthy();
-    expect(zeynep().getByLabelText('Su ver, 9 kişi su verdi')).toBeTruthy();
+    await fireEvent.press(zeynepButton());
+    expect(await screen.findByText('Tepki gönderilemedi. Tekrar dene.')).toBeTruthy();
+    expect(zeynep().getByRole('button', { name: GIVE, selected: false })).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_38)).toBeTruthy();
   });
 
   it('çift dokunuşta istekleri sıraya dizer ve son istenen değerde kalır', async () => {
     const base = createMockServices();
     const first = defer<void>();
-    const calls: boolean[] = [];
-    const setClap = jest.fn(async (id: string, value: boolean) => {
-      calls.push(value);
+    const calls: (ReactionType | null)[] = [];
+    const setReaction = jest.fn(async (id: string, reaction: ReactionType | null) => {
+      calls.push(reaction);
       if (calls.length === 1) await first.promise;
-      return base.feed.setClap(id, value);
+      return base.feed.setReaction(id, reaction);
     });
-    await renderFeed(withFeed({ setClap }, base));
+    await renderFeed(withFeed({ setReaction }, base));
     await screen.findByTestId('post-post-002');
 
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
-    await fireEvent.press(zeynep().getByLabelText(CLAP_25_ON));
+    await fireEvent.press(zeynepButton());
+    await fireEvent.press(zeynepButton());
     // İlk istek bitmeden ikinci gönderilmez; ekran zaten son değeri gösterir.
-    expect(calls).toEqual([true]);
-    expect(zeynep().getByLabelText(CLAP_24)).toBeTruthy();
+    expect(calls).toEqual(['water']);
+    expect(zeynep().getByLabelText(GIVE)).toBeTruthy();
 
     await act(async () => first.resolve());
-    expect(calls).toEqual([true, false]);
-    expect(await zeynep().findByLabelText(CLAP_24)).toBeTruthy();
+    expect(calls).toEqual(['water', null]);
+    expect(await zeynep().findByLabelText(GIVE)).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_38)).toBeTruthy();
   });
 
   it('çift dokunuşun ikinci isteği düşerse son onaylı değere döner', async () => {
     const base = createMockServices();
     const first = defer<void>();
     let n = 0;
-    const setClap = jest.fn(async (id: string, value: boolean) => {
+    const setReaction = jest.fn(async (id: string, reaction: ReactionType | null) => {
       n += 1;
       if (n === 1) {
         await first.promise;
-        return base.feed.setClap(id, value);
+        return base.feed.setReaction(id, reaction);
       }
       throw new ServiceError('network', 'x');
     });
-    await renderFeed(withFeed({ setClap }, base));
+    await renderFeed(withFeed({ setReaction }, base));
     await screen.findByTestId('post-post-002');
 
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
-    await fireEvent.press(zeynep().getByLabelText(CLAP_25_ON));
+    await fireEvent.press(zeynepButton());
+    await fireEvent.press(zeynepButton());
     await act(async () => first.resolve());
 
-    // İlk istek onaylandı (seçili, 25); ikincisi düştü, sunucudaki değere dönülür.
-    expect(await zeynep().findByLabelText(CLAP_25_ON)).toBeTruthy();
-    expect(await screen.findByText('Alkış gönderilemedi. Tekrar dene.')).toBeTruthy();
+    // İlk istek onaylandı (Su ver, 39); ikincisi düştü, sunucudaki değere dönülür.
+    expect(await zeynep().findByLabelText(WATER_ON)).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_WATER_39)).toBeTruthy();
+    expect(await screen.findByText('Tepki gönderilemedi. Tekrar dene.')).toBeTruthy();
   });
 
   it('Reduce Motion kapalıyken tepki verilince ikon sıçrar', async () => {
     await renderFeed();
     await screen.findByTestId('post-post-002');
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
-    expect(await zeynep().findByLabelText(CLAP_25_ON)).toBeTruthy();
+    await fireEvent.press(zeynepButton());
+    expect(await zeynep().findByLabelText(WATER_ON)).toBeTruthy();
     expect(getMotionCalls().sequence).toBeGreaterThan(0);
   });
 
@@ -238,15 +280,15 @@ describe('FeedScreen', () => {
     setReducedMotion(true);
     await renderFeed();
     await screen.findByTestId('post-post-002');
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
-    expect(await zeynep().findByLabelText(CLAP_25_ON)).toBeTruthy();
+    await fireEvent.press(zeynepButton());
+    expect(await zeynep().findByLabelText(WATER_ON)).toBeTruthy();
     expect(getMotionCalls().sequence).toBe(0);
   });
 
-  it('tepki butonları ve sekmeler en az 44 dp dokunma alanı verir', async () => {
+  it('tepki düğmesi ve sekmeler en az 44 dp dokunma alanı verir', async () => {
     await renderFeed();
     await screen.findByTestId('post-post-002');
-    const style = StyleSheet.flatten(zeynep().getByTestId('reaction-clap').props.style);
+    const style = StyleSheet.flatten(zeynepButton().props.style);
     expect(style.minHeight).toBeGreaterThanOrEqual(44);
     const tab = StyleSheet.flatten(screen.getByRole('tab', { name: 'Herkes' }).props.style);
     expect(tab.minHeight).toBeGreaterThanOrEqual(44);
@@ -257,7 +299,7 @@ describe('FeedScreen', () => {
     const getPosts = jest.fn((scope?: FeedScope) => base.feed.getPosts(scope));
     await renderFeed(withFeed({ getPosts }, base));
     await screen.findByTestId('post-post-001');
-    expect(getPosts).toHaveBeenLastCalledWith('friends');
+    expect(getPosts).toHaveBeenLastCalledWith('friends', expect.anything());
     expect(screen.getByRole('tab', { name: 'Arkadaşlar', selected: true })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Herkes', selected: false })).toBeTruthy();
     expect(screen.queryByText('Selin')).toBeNull();
@@ -266,7 +308,7 @@ describe('FeedScreen', () => {
     expect(screen.getByRole('tab', { name: 'Herkes', selected: true })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Arkadaşlar', selected: false })).toBeTruthy();
     expect(await screen.findByText('Selin')).toBeTruthy();
-    expect(getPosts).toHaveBeenLastCalledWith('everyone');
+    expect(getPosts).toHaveBeenLastCalledWith('everyone', expect.anything());
 
     // Arkadaşlara dönünce önbellek gösterilir, yeniden yüklenmez.
     await fireEvent.press(screen.getByRole('tab', { name: 'Arkadaşlar' }));
@@ -305,40 +347,38 @@ describe('FeedScreen', () => {
   it('tepki uçuştayken çek-yenile iyimser durumu ezmez', async () => {
     const base = createMockServices();
     const pending = defer<void>();
-    const setClap = jest.fn(async (id: string, value: boolean) => {
-      await pending.promise;
-      return base.feed.setClap(id, value);
-    });
-    await renderFeed(withFeed({ setClap }, base));
+    const setReaction = setReactionMock(base, pending.promise);
+    await renderFeed(withFeed({ setReaction }, base));
     await screen.findByTestId('post-post-002');
 
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
+    await fireEvent.press(zeynepButton());
     const refreshControl = screen.getByTestId('feed-list').props.refreshControl;
     await act(async () => {
       refreshControl.props.onRefresh();
     });
     // Yenileme sunucunun eski değerini getirdi ama kullanıcının tepkisi korunur.
-    expect(zeynep().getByLabelText(CLAP_25_ON)).toBeTruthy();
+    expect(zeynep().getByLabelText(WATER_ON)).toBeTruthy();
+    expect(zeynep().getByLabelText(SUMMARY_WATER_39)).toBeTruthy();
 
     await act(async () => pending.resolve());
-    expect(zeynep().getByLabelText(CLAP_25_ON)).toBeTruthy();
-    expect(setClap).toHaveBeenCalledTimes(1);
+    expect(zeynep().getByLabelText(WATER_ON)).toBeTruthy();
+    expect(setReaction).toHaveBeenCalledTimes(1);
   });
 
   it('hata geri alınırken ve geri alma dokunuşunda sıçrama olmaz; sadece vermede sıçrar', async () => {
-    const setClap = jest.fn().mockRejectedValue(new ServiceError('network', 'x'));
-    await renderFeed(withFeed({ setClap }));
+    const setReaction = jest.fn().mockRejectedValue(new ServiceError('network', 'x'));
+    await renderFeed(withFeed({ setReaction }));
     await screen.findByTestId('post-post-002');
 
-    await fireEvent.press(zeynep().getByLabelText(CLAP_24));
-    expect(await screen.findByText('Alkış gönderilemedi. Tekrar dene.')).toBeTruthy();
+    await fireEvent.press(zeynepButton());
+    expect(await screen.findByText('Tepki gönderilemedi. Tekrar dene.')).toBeTruthy();
     // Tek sıçrama: kullanıcının dokunuşu. Geri alma (hata dönüşü) yeni sıçrama başlatmadı.
     expect(getMotionCalls().sequence).toBe(1);
 
     // Zaten aktif olan Mert'in alkışını geri almak sıçratmaz.
     resetMotionCalls();
     const mert = within(screen.getByTestId('post-post-001'));
-    await fireEvent.press(mert.getByLabelText('Alkışla, 18 kişi alkışladı, seçili'));
+    await fireEvent.press(mert.getByLabelText(CLAP_ON));
     expect(getMotionCalls().sequence).toBe(0);
   });
 

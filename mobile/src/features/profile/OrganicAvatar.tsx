@@ -26,7 +26,7 @@ export function OrganicAvatar({ name, initial, size = 88 }: Props) {
       </Svg>
       <View style={[StyleSheet.absoluteFill, styles.letter]}>
         <AppText variant="title1" color="onPrimary">
-          {initial.slice(0, 1).toLocaleUpperCase('tr')}
+          {Array.from(initial)[0] ?? ''}
         </AppText>
       </View>
     </View>
